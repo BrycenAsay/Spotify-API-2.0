@@ -1,10 +1,9 @@
-import requests
 from API_URIs import API_URIs
 from sqlalchemy import create_engine, text
 import logging
 from config import DATABASE, HOST, USER, PASSWORD
 
-engine = create_engine(f'mysql+pymysql://{USER}:{PASSWORD}@{HOST}/{DATABASE}')
+engine = create_engine(f'postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}/{DATABASE}')
 
 def error_handling(message, USER_ID=None, SCOPES=None):
     if 'error' in message:
@@ -49,12 +48,7 @@ def refresh_access_token(_user_id, _scopes):
         except Exception as e:
             logging.error('did not work: ', e)
             conn.rollback()
-        refresh_access_token_API_deets = API_URIs.refresh_access_token(refresh_token)
-        url = refresh_access_token_API_deets['URL']
-        headers = refresh_access_token_API_deets['Headers']
-        payload = refresh_access_token_API_deets['Payload']
-        response = requests.request("POST", url, headers=headers, data=payload)
-        pure_authorization_data = response.json()
+        pure_authorization_data = API_URIs.refresh_access_token(refresh_token)
         error_handling(pure_authorization_data)
         COLUMNS = ['access_token']
         DATA = [pure_authorization_data['access_token']]
@@ -75,21 +69,11 @@ def main():
 
     # second step, passing the code in and using the correct API call so that we can get the access token
     code = input('Paste code (from URL) here: ')
-    access_token_API_deets = API_URIs.get_access_token(code)
-    url = access_token_API_deets['URL']
-    headers = access_token_API_deets['Headers']
-    payload = access_token_API_deets['Payload']
-    response = requests.request("POST", url, headers=headers, data=payload)
-    pure_authorization_data = response.json()
+    pure_authorization_data = API_URIs.get_access_token(code)
     error_handling(pure_authorization_data)
 
     # getting more info on the person so we actually know who is who
-    get_personal_info_deets = API_URIs.get_personal_information(pure_authorization_data['access_token'])
-    url = get_personal_info_deets['URL']
-    headers = get_personal_info_deets['Headers']
-    payload = get_personal_info_deets['Payload']
-    response = requests.request("GET", url, headers=headers, data=payload)
-    pure_personal_data = response.json()
+    pure_personal_data = API_URIs.get_personal_information(pure_authorization_data['access_token'])
     error_handling(pure_personal_data)
 
     # check to see if user already in database
