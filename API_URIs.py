@@ -1,6 +1,7 @@
 from config import CLIENT_ID, CLIENT_SECRET
 from auth_encoding_process import auth_encoding_process
 import time
+import os
 import requests
 import json
 
@@ -24,15 +25,37 @@ def error_handling(message, _url, _headers, _payload):
     else:
         return message
 
-def send_request(_url, _headers, _payload, is_post=False, is_get=False):
+def send_request(_url, _headers, _payload, is_post=False, is_get=False, is_put=False):
     if is_get:
         response = requests.request("GET", _url, headers=_headers, data=_payload)
     elif is_post:
         response = requests.request("POST", _url, headers=_headers, data=_payload)
+    elif is_put:
+        response = requests.request("PUT", _url, headers=_headers, data=_payload, timeout=10)
     else:
-        return "ERROR! Please provide POST or GET request, or update code to handle requests outside of 'GET' and 'POST!'" 
-    unclean_data = response.json()
-    return error_handling(unclean_data, _url, _headers, _payload)
+        return "ERROR! Please provide POST or GET request, or update code to handle requests outside of 'GET' and 'POST!'"
+    
+    if response.status_code == 429:
+        while 'retry-after' in response.headers:
+            time_to_sleep = int(response.headers['retry-after']) + 30
+            for i in range(time_to_sleep):
+                os.system('cls')
+                print(f'F*** YOU SPOTIFY RATE LIMIT! YOU HAVE TO WAIT {time_to_sleep} STILL :((')
+                time.sleep(1)
+                time_to_sleep -= 1
+            
+    if is_get:
+        response = requests.request("GET", _url, headers=_headers, data=_payload)
+    elif is_post:
+        response = requests.request("POST", _url, headers=_headers, data=_payload)
+    elif is_put:
+        response = requests.request("PUT", _url, headers=_headers, data=_payload, timeout=15)
+    else:
+        return "ERROR! Please provide POST or GET request, or update code to handle requests outside of 'GET' and 'POST!'"
+
+    if (is_get) or (is_post):
+        unclean_data = response.json()
+        return error_handling(unclean_data, _url, _headers, _payload)
 
 class API_URIs():
     def __init__(self):
@@ -118,3 +141,37 @@ class API_URIs():
         Url = f"https://api.spotify.com/v1/users/{_user_id}/playlists/{_playlist_id}/tracks"
         Payload = json.dumps({"uris": _song_uri})
         return send_request(Url, Headers, Payload, is_post=True)
+    
+    def get_user_queue(_user_bearer):
+        Headers = {'Authorization': f'Bearer {_user_bearer}'}
+        Url = f"https://api.spotify.com/v1/me/player/queue"
+        Payload = {}
+        return send_request(Url, Headers, Payload, is_get=True)
+    
+    def update_playlist_items(_user_id, _user_bearer, _playlist_id, _item_idx, _ib_item_idx):
+        Headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {_user_bearer}'}
+        Url = f"https://api.spotify.com/v1/playlists/{_playlist_id}/tracks"
+        Payload = json.dumps({"range_start": _item_idx, "insert_before": _ib_item_idx})
+        return send_request(Url, Headers, Payload, is_put=True)
+    
+    def get_avaliable_genre_seeds(_user_bearer):
+        Headers = {'Authorization': f'Bearer {_user_bearer}'}
+        Url = "https://api.spotify.com/v1/recommendations/available-genre-seeds"
+        Payload = {}
+        return send_request(Url, Headers, Payload, is_get=True)
+    
+    def update_playlist_image(_user_bearer, _playlist_id, _b64_img):
+        Headers = {
+        'Content-Type': 'text/plain',
+        'Authorization': f'Bearer {_user_bearer}'}
+        Url = f"https://api.spotify.com/v1/playlists/{_playlist_id}/images"
+        Payload = _b64_img
+        return send_request(Url, Headers, Payload, is_put=True)
+
+    def get_recomendations_genre(_user_bearer, song_attr, _limit=10, _seed_genres=None):
+        Headers = {'Authorization': f'Bearer {_user_bearer}'}
+        Url = f"https://api.spotify.com/v1/recommendations?limit={_limit}&seed_genres={_seed_genres}&target_popularity={song_attr['t_pop']}"
+        Payload = {}
+        return send_request(Url, Headers, Payload, is_get=True)

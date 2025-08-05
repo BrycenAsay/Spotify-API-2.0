@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, text
 from config import DATABASE, HOST, USER, PASSWORD
-from API_Calls import get_user_playlists, get_playlist_tracks, make_user_recommendations_playlist, refresh_access_token
+import API_Calls
 import logging
+import time
 engine = create_engine(f'postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}/{DATABASE}')
 
 def create_row(table_name, columns, data):
@@ -11,7 +12,7 @@ def create_row(table_name, columns, data):
     return query
 
 def main():
-    get_playlist_tracks('よまま')
+    API_Calls.end_music_phobia('よまま')
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,12 @@
 import pandas as pd
+import os
 from API_URIs import API_URIs
 from OAuth import refresh_access_token
 from sqlalchemy import create_engine, text
+from Image_Generation import return_rand_img
+import random
 import logging
+import time
 from config import DATABASE, HOST, USER, PASSWORD
 
 engine = create_engine(f'postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}/{DATABASE}')
@@ -237,3 +241,118 @@ def make_user_recommendations_playlist(_display_name):
         else:
             song_uris_arr = song_uris[first_digits:len(song_uris)]
         pure_data = API_URIs.put_items_in_playlist(user_id, access_token, playlist_id, song_uris_arr)
+
+def randomize_playlist_order(_display_name, _playlyst_id):
+    # retreieve user id and proper access_token for user
+    Scopes = 'playlist-modify-private playlist-modify-public'
+    user_info = retrieve_user_auth(_display_name, Scopes)
+    access_token = user_info[0]
+    user_id = user_info[1]
+
+    # retrieve number of tracks for the playlist from the database
+    num_of_tracks = (pd.read_sql(text(f"SELECT num_of_tracks FROM {_display_name}s_playlists WHERE playlist_ids = '{_playlyst_id}'"), con=engine.connect())).to_dict()['num_of_tracks'][0]
+
+    # create a list with every item # randomized for the playlist, then assign every item a position
+    pos_items = [i for i in range(num_of_tracks)]
+    reass_pos = [i for i in range(num_of_tracks)]
+    rand_item_pos_assign = {}
+    for i in range(len(pos_items)):
+        rand_pos_assign = reass_pos[random.randint(0, len(reass_pos) - 1)]
+        rand_item_pos_assign[pos_items[i]] = rand_pos_assign
+        reass_pos.pop(reass_pos.index(rand_pos_assign))
+
+    # iterate throught he dict, until each item has been reassigned to it's designated value
+    for item in rand_item_pos_assign:
+        pure_data = API_URIs.update_playlist_items(user_id, access_token, _playlyst_id, item, rand_item_pos_assign[item])
+        print(pure_data)
+        time.sleep(.14)
+
+def end_music_phobia(_display_name, _playlist_id='7mc6eQFiPnXBPwq1zWsk02'):
+    # retreieve user id and proper access_token for user
+    Scopes = 'ugc-image-upload playlist-modify-private playlist-modify-public'
+    user_info = retrieve_user_auth(_display_name, Scopes)
+    access_token = user_info[0]
+    user_id = user_info[1]
+
+    # set playlist image
+    API_URIs.update_playlist_image(access_token, _playlist_id, return_rand_img())
+
+    # define function to initialize dictonary with all individual song attributes and randomized values
+    def song_attr_random():
+        song_attrs_dict = {}
+        keys = ['t_pop']
+        for key in keys:
+            if key not in ['t_pop', 't_temp']:
+                song_attrs_dict[key] = random.randint(0, 100) / 100
+            elif key == 't_pop':
+                song_attrs_dict[key] = random.randint(0, 100)
+            elif key == 't_temp':
+                song_attrs_dict[key] = random.randint(50, 190)
+        return song_attrs_dict
+
+    # initialize a list with all possible genre parm options Spotify will allow
+    poss_genres = API_URIs.get_avaliable_genre_seeds(access_token)['genres']
+
+    # get music recommendations to add, append results to list
+    song_uris = []
+    song_genres = []
+    genre_groups = []
+    print(f'Image init completed. So far, 0/{len(genre_groups)} recommendations recieved! :/')
+    for i in range(0, len(poss_genres), 5):
+        if (i + 5) < len(poss_genres):
+            genre_groups.append(poss_genres[i:i+ 5])
+        elif (i + 5) > len(poss_genres):
+            genre_groups.append(poss_genres[i:(i + (len(poss_genres) % 5))])
+    for genre_group in genre_groups:
+        time.sleep(0.5)
+        try:
+            something = API_URIs.get_recomendations_genre(access_token, song_attr_random(), 50, genre_group)
+            print(something)
+            input()
+            input()
+            # song_uris.append(track['uri'])
+        except:
+            pass
+        done_so_far = genre_groups.index(genre_group) + 1
+
+        # update access token so it does not expire
+        refresh_access_token('9g0sn24ze4wyf0gpldyfxmy96', 'ugc-image-upload playlist-modify-private playlist-modify-public')
+        user_info = retrieve_user_auth(_display_name, Scopes)
+        access_token = user_info[0]
+
+        os.system('cls')
+
+        if done_so_far <= 10:
+            print(f"WOW, ALMOST THERE!!!... Jk only {done_so_far}/{len(genre_groups)} loaded :'(")
+        elif done_so_far <= 30:
+            print(f"Losing patience already, I see??? WOMP WOMP. Only {done_so_far}/{len(genre_groups)} loaded :'(")
+        elif done_so_far <= 50:
+            print(f"Slow and steady, as they say... {done_so_far}/{len(genre_groups)} loaded :(")
+        elif done_so_far <= 67:
+            print(f"Far along, but not far enough mannnnn, {done_so_far}/{len(genre_groups)} loaded :/")
+        elif done_so_far <= 68:
+            print(f"Almost there... {done_so_far}/{len(genre_groups)} loaded :/")
+        elif done_so_far == 69:
+            print(f"HAHAHAHAHAHAHAHAHHAHAHAH FUNNY NUMBER!!! {done_so_far}/{len(genre_groups)} loaded :DDDDD")
+        elif done_so_far <= 99:
+            print(f"Pretty sure you stopped monitoring this by now... {done_so_far}/{len(genre_groups)} loaded :/")
+        elif done_so_far <= 100:
+            print(f"Hitting triple digits now! Reaching the home stretch! {done_so_far}/{len(genre_groups)} loaded :)")
+        elif done_so_far <= 110:
+            print(f"Please don't hit the rate limit... please don't throw an error... {done_so_far}/{len(genre_groups)} loaded :)")
+        elif done_so_far <= len(poss_genres) - 4:
+            print(f"PLEASE DON'T HIT THE RATE LIMIT... PLEASE DON'T THROW AN ERROR... I'M FUCKING BEGGING YOU MANNNNNN- {done_so_far}/{len(genre_groups)} loaded :)")
+        elif done_so_far <= len(poss_genres) - 1:
+            print(f"ONLY ONE MORE LEFT PLEASE BY THE POWER OF THE HOLY SPAGHETTI MONSTER PLEASE LET THIS WORK... {done_so_far}/{len(genre_groups)} loaded :)")
+        elif done_so_far <= len(poss_genres):
+            print(f"It. Is. Finished. My. Work. Is. Done. {done_so_far}/{len(genre_groups)} loaded :D :D :D :D :D :D :D :D :D :D :D :D (PLEASE LET THE ACTUAL ADDING-THE-SONGS-TO-THE-PLAYLIST SHIT WORK)")
+    
+    # set up API details and make a call, make sure to check for errors (in the case of playlists, loop until you run out of playlist ids)
+    first_digits = round(len(song_uris), -2)
+    for i in range(0, first_digits + 1, 100):
+        if i < first_digits:
+            e = i + 100
+            song_uris_arr = song_uris[i:e]
+        else:
+            song_uris_arr = song_uris[first_digits:len(song_uris)]
+        API_URIs.put_items_in_playlist(user_id, access_token, _playlist_id, song_uris_arr)
